@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-I/home/tony-jammeroni/Documents/programming_studies/C/graphics/2.5d/include, -DSOKOL_GLCORE]
