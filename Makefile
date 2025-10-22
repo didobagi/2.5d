@@ -1,33 +1,32 @@
 UNAME := $(shell uname)
 
-ifeq ($(UNAME), Linux)
-    DEFINES = -DSOKOL_GLCORE
-    LIBS = -lX11 -lXi -lXcursor -lGL -lpthread -lm -ldl
-endif
+TARGET = build/main
+SOURCES = src/main.c
+OBJECTS = build/main.o
+INCLUDES = -Iinclude
 
 ifeq ($(UNAME), Darwin)
-	DEFINES = -DSOKOL_METAL
-	LIBS = -framework Cocoa -framework Metal -framework MetalKit -framework Quartz
+    CC = clang
+    CFLAGS = $(INCLUDES) -x objective-c -DSOKOL_GLCORE
+    LDFLAGS = -framework Cocoa -framework OpenGL -framework IOKit
+else
+    CC = cc
+    CFLAGS = $(INCLUDES) -DSOKOL_GLCORE
+    LDFLAGS = -lX11 -lXi -lXcursor -lGL -lpthread -lm -ldl
 endif
 
-CFLAGS = $(DEFINES) -Iinclude
-LDFLAGS = $(LIBS)
-SRCDIR = src
-BUILDDIR = build
-SOURCES = $(wildcard $(SRCDIR)/*.c)
-OBJECTS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
-TARGET = build/main
+all: build $(TARGET)
 
-all: $(TARGET)
+build:
+	mkdir -p build
+
 $(TARGET): $(OBJECTS)
 	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
 
-$(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
+build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR):
-	mkdir -p $(BUILDDIR)
-
 clean:
-	rm -rf $(BUILDDIR) 
+	rm -rf build
 
+.PHONY: all clean

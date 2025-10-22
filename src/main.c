@@ -1,4 +1,3 @@
-#include <X11/X.h>
 #include <math.h>
 #include <stdbool.h>
 #define SOKOL_IMPL
@@ -30,7 +29,7 @@ float p_angle = 1.57f; //in rad
 static sg_buffer pos_buf;
 static sg_buffer col_buf;
 static sg_pipeline pip;
-static sg_bindings bind;
+static sg_bindings r_bind;
 static sg_image offscreen_img;
 static sg_view offscreen_view;
 static sg_view offscreen_texture_view;
@@ -54,41 +53,41 @@ typedef struct {
 
 
 const char *vs_source =
-"#version 330\n"
+"#version 330 core\n"
 "layout(location=0) in vec2 position;\n"
 "layout(location=1) in vec3 color;\n"
 "out vec3 v_color;\n"
 "void main() {\n"
-"   gl_Position = vec4 (position, 0.0, 1.0);\n" 
+"   gl_Position = vec4(position, 0.0, 1.0);\n" 
 "   v_color = color;\n"
 "}\n";
 
 const char *fs_source =
-"#version 330\n"
+"#version 330 core\n"
 "in vec3 v_color;\n"
 "out vec4 frag_color;\n"
 "void main() {\n"
-"   frag_color = vec4 (v_color, 1.0);\n"
+"   frag_color = vec4(v_color, 1.0);\n"
 "}\n";
 
 const char *display_vs_source =
-"#version 330\n"
+"#version 330 core\n"
 "layout(location=0) in vec2 position;\n"
 "layout(location=1) in vec2 texcoord;\n"
 "out vec2 uv;\n"
 "void main(){\n"
 "   gl_Position = vec4(position, 0.0, 1.0);\n"
 "   uv = texcoord;\n"
-"};\n";
+"}\n";
 
 const char *display_fs_source =
-"#version 330\n"
+"#version 330 core\n"
 "uniform sampler2D tex;\n"
 "in vec2 uv;\n"
 "out vec4 frag_color;\n"
 "void main(){\n"
 "   frag_color = texture(tex,uv);\n"
-"};\n";
+"}\n";
 
 void event(const sapp_event* e) {
         if (e->type == SAPP_EVENTTYPE_KEY_DOWN) {
@@ -274,8 +273,8 @@ void init(void) {
             .compare = SG_COMPAREFUNC_ALWAYS,
         },
     });
-    bind.vertex_buffers[0] = pos_buf;
-    bind.vertex_buffers[1] = col_buf;
+    r_bind.vertex_buffers[0] = pos_buf;
+    r_bind.vertex_buffers[1] = col_buf;
 
 }
 
@@ -334,7 +333,7 @@ void frame(void) {
             }
     });
     sg_apply_pipeline(pip);
-    sg_apply_bindings(&bind);
+    sg_apply_bindings(&r_bind);
 
     float positions[400*6*2];
     float colors[400*6*3];
