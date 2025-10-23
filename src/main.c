@@ -110,12 +110,58 @@ void event(const sapp_event* e) {
 }
 
 
+RayHit cast_ray_dda(float ray_angle) {
+    float ray_dir_x = cos(ray_angle);
+    float ray_dir_y = sin(ray_angle);
+
+    int map_x = (int)p_x;
+    int map_y = (int)p_y;
+
+    int step_x = (ray_dir_x >= 0) ? 1 : -1; 
+    int step_y = (ray_dir_y >= 0) ? 1 : -1; 
+
+    float next_boundary_x = (step_x > 0) ? (map_x + 1) : map_x;
+    float distance_to_b_x = (step_x > 0) ? (next_boundary_x - p_x) : (p_x - next_boundary_x);
+    float next_boundary_y = (step_y > 0) ? (map_y + 1) : map_y;
+    float distance_to_b_y = (step_y > 0) ? (next_boundary_y - p_y) : (p_y - next_boundary_y);
+
+    float delta_x = distance_to_b_x / fabs(ray_dir_x);
+    float delta_y = distance_to_b_y / fabs(ray_dir_y);
+    float delta_d_x = 1.0f / fabs(ray_dir_x);
+    float delta_d_y = 1.0f / fabs(ray_dir_y);
+
+    int side = 0;
+
+    for (int i = 0; i < MAP_H + MAP_W; i++) {
+        if (delta_x < delta_y) {
+            map_x += step_x;
+            delta_x += delta_d_x;
+            side = 1;
+        } else {
+            map_y += step_y;
+            delta_y += delta_d_y;
+            side = 0;
+        }
+        if (map_x < 0 || map_x >= MAP_W || map_y < 0 || map_y >= MAP_H) {
+            return (RayHit){100.0f, 0, 0};
+        } 
+        if (map[map_y][map_x] != 0) {
+            float distance = (side == 1) ?  delta_x - delta_d_x : delta_y - delta_d_y;
+            int wall_type = map[map_y][map_x];
+            return (RayHit){distance, wall_type, side};
+        }
+    }
+    return (RayHit){100.0f, 0, 0};
+}
+
+
 
 
 
 RayHit cast_ray(float ray_angle) {
     float ray_x = p_x;
     float ray_y = p_y;
+
 
     float ray_dir_x = cos(ray_angle);
     float ray_dir_y = sin(ray_angle);
