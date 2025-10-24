@@ -118,7 +118,26 @@ const char *display_fs_source =
 "in vec2 uv;\n"
 "out vec4 frag_color;\n"
 "void main(){\n"
-"   frag_color = texture(tex,uv);\n"
+"   // Chromatic aberration\n"
+"   vec2 center = vec2(0.5, 0.5);\n"
+"   vec2 offset = uv - center;\n"
+"   float dist = length(offset);\n"
+"   float aberration = 0.007* dist;\n"
+"   vec2 dir = normalize(offset);\n"
+"   \n"
+"   float r = texture(tex, uv + dir * aberration * 2.0).r;\n"
+"   float g = texture(tex, uv).g;\n"
+"   float b = texture(tex, uv - dir * aberration * 2.0).b;\n"
+"   \n"
+"   vec3 color = vec3(r, g, b);\n"
+"   \n"
+"   // Random-looking dithering\n"
+"   vec2 pixel = gl_FragCoord.xy;\n"
+"   float noise = fract(sin(dot(pixel, vec2(12.9898, 78.233))) * 43758.5453);\n"
+"   \n"
+"   color += (noise - 0.5) * 0.04;\n"
+"   \n"
+"   frag_color = vec4(color, 1.0);\n"
 "}\n";
 
 void event(const sapp_event* e) {
@@ -247,7 +266,7 @@ void init(void) {
 
     //load textoo
     int tex_w, tex_h, tex_chann;
-    unsigned char *tex_data = stbi_load("assets/textures/brick.png",
+    unsigned char *tex_data = stbi_load("assets/textures/brick2.png",
                                         &tex_w, &tex_h, &tex_chann, 4);
     if (!tex_data) {
         printf("ERROR: Failed to load textoo Check file path.\n");
@@ -437,45 +456,102 @@ void init(void) {
 
 void frame(void) {
 
+
+    float move_speed = 0.025f;
+    float rot_speed = 0.025f;
+    float min_wall_dist = 0.2f;
+
+    float new_x = p_x;
+    float new_y = p_y;
+
     if (key_w) {
-        float new_x = p_x + cosf(p_angle) * 0.03f;
-        float new_y = p_y + sinf(p_angle) * 0.03f;
-        if (map[(int)new_y][(int)new_x] == 0) {
-            p_x = new_x;
-            p_y = new_y;
-        }
+        new_x += cosf(p_angle) * move_speed;
+        new_y += sinf(p_angle) * move_speed;
     }
-
     if (key_s) {
-        float new_x = p_x - cosf(p_angle) * 0.03f;
-        float new_y = p_y - sinf(p_angle) * 0.03f;
-        if (map[(int)new_y][(int)new_x] == 0) {
-            p_x = new_x;
-            p_y = new_y;
-        }
+        new_x -= cosf(p_angle) * move_speed;
+        new_y -= sinf(p_angle) * move_speed;
     }
-
-
     if (key_a) {
-        float new_x = p_x + cosf(p_angle - 1.57f) * 0.02f;
-        float new_y = p_y + sinf(p_angle - 1.57f) * 0.03f;
-        if (map[(int)new_y][(int)new_x] == 0) {
-            p_x = new_x;
-            p_y = new_y;
-        }
+        new_x += cosf(p_angle - 1.57f) * move_speed;
+        new_y += sinf(p_angle - 1.57f) * move_speed;
     }
-
     if (key_d) {
-        float new_x = p_x + cosf(p_angle + 1.57f) * 0.02f;
-        float new_y = p_y + sinf(p_angle + 1.57f) * 0.02f;
-        if (map[(int)new_y][(int)new_x] == 0) {
-            p_x = new_x;
-            p_y = new_y;
+        new_x += cosf(p_angle + 1.57f) * move_speed;
+        new_y += sinf(p_angle + 1.57f) * move_speed;
+    }
+
+    bool can_move_both = true;
+    bool can_move_x = true;
+    bool can_move_y = true;
+
+    float checks_both[][2] = {
+        {new_x + min_wall_dist, new_y + min_wall_dist},
+        {new_x - min_wall_dist, new_y + min_wall_dist},
+        {new_x + min_wall_dist, new_y - min_wall_dist},
+        {new_x - min_wall_dist, new_y - min_wall_dist}
+    };
+
+    float checks_x[][2] = {
+        {new_x + min_wall_dist, p_y + min_wall_dist},
+        {new_x - min_wall_dist, p_y + min_wall_dist},
+        {new_x + min_wall_dist, p_y - min_wall_dist},
+        {new_x - min_wall_dist, p_y - min_wall_dist}
+    };
+
+    float checks_y[][2] = {
+        {p_x + min_wall_dist, new_y + min_wall_dist},
+        {p_x - min_wall_dist, new_y + min_wall_dist},
+        {p_x + min_wall_dist, new_y - min_wall_dist},
+        {p_x - min_wall_dist, new_y - min_wall_dist}
+    };
+
+    for (int i = 0; i < 4; i++) {
+        int cx = (int)checks_both[i][0];
+        int cy = (int)checks_both[i][1];
+        if (cx >= 0 && cx < MAP_W && cy >= 0 && cy < MAP_H) {
+            if (map[cy][cx] != 0) {
+                can_move_both = false;
+                break;
+            }
         }
     }
 
-    if (key_q) p_angle -= 0.03f;
-    if (key_e) p_angle += 0.03f;
+    for (int i = 0; i < 4; i++) {
+        int cx = (int)checks_x[i][0];
+        int cy = (int)checks_x[i][1];
+        if (cx >= 0 && cx < MAP_W && cy >= 0 && cy < MAP_H) {
+            if (map[cy][cx] != 0) {
+                can_move_x = false;
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < 4; i++) {
+        int cx = (int)checks_y[i][0];
+        int cy = (int)checks_y[i][1];
+        if (cx >= 0 && cx < MAP_W && cy >= 0 && cy < MAP_H) {
+            if (map[cy][cx] != 0) {
+                can_move_y = false;
+                break;
+            }
+        }
+    }
+
+    if (can_move_both) {
+        p_x = new_x;
+        p_y = new_y;
+    } else if (can_move_x) {
+        p_x = new_x;
+    } else if (can_move_y) {
+        p_y = new_y;
+    }
+
+    if (key_q) p_angle -= rot_speed;
+    if (key_e) p_angle += rot_speed;
+
+
 
     //first pass (offscren)
     sg_begin_pass(&(sg_pass){
@@ -493,7 +569,7 @@ void frame(void) {
     sg_apply_bindings(&r_bind);
 
     float plane_x = 0.0f;
-    float plane_y = 0.66f; //fov
+    float plane_y = 0.65f; //fov
     float positions[480*18*2];
     float colors[480*18*3];
     float uvs[480*18*2];
@@ -503,25 +579,13 @@ void frame(void) {
 
     for (int i = 0; i < 480; i++) {
 
-        float camera_x = 2.0f * i / 480.0f - 1.0f;
-
-        float dir_x = cosf(p_angle);
-        float dir_y = sinf(p_angle);
-
-        float plane_x = -sinf(p_angle) * 0.66f;  // 0.66 ≈ 66° FOV
-        float plane_y = cosf(p_angle) * 0.66f;
-
-        float ray_dir_x = dir_x + plane_x * camera_x;
-        float ray_dir_y = dir_y + plane_y * camera_x;
-
-        // Convert to angle for cast_ray
-        float ray_angle = atan2f(ray_dir_y, ray_dir_x);
+        float screen_x = (2.0f * i / 480.0f) - 1.0f;
+        float ray_angle = p_angle + screen_x * (FOV / 2.0f);
 
         RayHit hit = cast_ray(ray_angle);
-        float ray_length = sqrtf(ray_dir_x * ray_dir_x + ray_dir_y * ray_dir_y);
-        float p_distance = hit.distance / ray_length;
+        float p_distance = hit.distance * cosf(ray_angle - p_angle);
 
-        float wall_x = hit.wall_hit_x; 
+        float wall_x = hit.wall_hit_x;
 
         float wall_h = 1.0f / p_distance;
 
