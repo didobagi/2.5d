@@ -1,15 +1,21 @@
 #include <math.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
 #define SOKOL_IMPL
 #include "sokol/sokol_app.h"
 #include "sokol/sokol_gfx.h"
 #include "sokol/sokol_glue.h"
 #include "sokol/sokol_log.h"
 
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #define MAP_W 16
 #define MAP_H 16
 
-#define FOV 1.047f //60degrees in rad
+#define FOV 1.147f //60degrees in rad
 
 #define RENDER_HEIGHT 300
 
@@ -38,6 +44,9 @@ float p_angle = 1.57f; //in rad
 
 static sg_buffer pos_buf;
 static sg_buffer col_buf;
+static sg_buffer uv_buf;
+
+
 static sg_pipeline pip;
 static sg_bindings r_bind;
 static sg_image offscreen_img;
@@ -46,6 +55,12 @@ static sg_view offscreen_texture_view;
 static sg_pipeline display_pip;
 static sg_bindings display_bind;
 static sg_sampler display_sampler;
+
+
+//texture test
+static sg_image brick_texture;
+static sg_sampler brick_sampler;
+static sg_view brick_texture_view;
 
 int key_w = 0;
 int key_s = 0;
@@ -59,25 +74,32 @@ typedef struct {
     float distance;
     int wall_t;
     int side;
+    float wall_hit_x;
 } RayHit;
 
 
 const char *vs_source =
 "#version 330 core\n"
 "layout(location=0) in vec2 position;\n"
-"layout(location=1) in vec3 color;\n"
-"out vec3 v_color;\n"
+"layout(location=1) in vec2 texcoord;\n"
+"layout(location=2) in vec3 color;\n"
+"out vec2 uv;\n"
+"out vec3 tint;\n"
 "void main() {\n"
 "   gl_Position = vec4(position, 0.0, 1.0);\n" 
-"   v_color = color;\n"
+"   uv = texcoord;\n"
+"   tint = color;\n"
 "}\n";
 
 const char *fs_source =
 "#version 330 core\n"
-"in vec3 v_color;\n"
+"uniform sampler2D tex;\n"
+"in vec2 uv;\n"
+"in vec3 tint;\n"
 "out vec4 frag_color;\n"
 "void main() {\n"
-"   frag_color = vec4(v_color, 1.0);\n"
+"   vec4 tex_color = texture(tex, uv);\n"
+"   frag_color = tex_color * vec4(tint, 1.0);\n"
 "}\n";
 
 const char *display_vs_source =
@@ -153,15 +175,24 @@ RayHit cast_ray_dda(float ray_angle) {
             side = 0;
         }
         if (map_x < 0 || map_x >= MAP_W || map_y < 0 || map_y >= MAP_H) {
-            return (RayHit){100.0f, 0, 0};
+            return (RayHit){100.0f, 0, 0, 0.0f};
         } 
         if (map[map_y][map_x] != 0) {
             float distance = (side == 1) ?  delta_x - delta_d_x : delta_y - delta_d_y;
             int wall_type = map[map_y][map_x];
-            return (RayHit){distance, wall_type, side};
+
+                float wall_hit_x;
+    if (side == 1) {  
+        float hit_y = p_y + ray_dir_y * distance;
+        wall_hit_x = hit_y - (int)hit_y;  
+    } else {  
+        float hit_x = p_x + ray_dir_x * distance;
+        wall_hit_x = hit_x - (int)hit_x;  
+    }
+            return (RayHit){distance, wall_type, side, wall_hit_x};
         }
     }
-    return (RayHit){100.0f, 0, 0};
+    return (RayHit){100.0f, 0, 0, 0.0f};
 }
 
 
@@ -183,7 +214,7 @@ RayHit cast_ray(float ray_angle) {
         int map_x = (int)ray_x;
         int map_y = (int)ray_y;
         if (map_x < 0 || map_x >= MAP_W || map_y < 0 || map_y >= MAP_H) {
-            return (RayHit){100.0f, 0, 0};
+            return (RayHit){100.0f, 0, 0, 0.0f};
         }
         if (map[(int)ray_y][(int)ray_x] != 0) {
             float dx = ray_x - p_x;
@@ -191,16 +222,19 @@ RayHit cast_ray(float ray_angle) {
             float dist = sqrtf(dx*dx + dy*dy);
             float fr_x = ray_x - map_x;
             float fr_y = ray_y - map_y;
+            float wall_hit_x;
             if (fr_x  < 0.1 || fr_x > 0.9) {
                 side = 1;
+                wall_hit_x = fr_y;
             } else {
                 side = 0;
+                wall_hit_x = fr_x;
             }
             int wall_t = map[map_y][map_x];
-            return (RayHit){dist, wall_t, side};
+            return (RayHit){dist, wall_t, side, wall_hit_x};
         }
     }
-    return (RayHit){100.0f, 0, 0};
+    return (RayHit){100.0f, 0, 0, 0.0f};
 }
 
 
@@ -210,6 +244,41 @@ void init(void) {
             .environment = sglue_environment(),
             .logger.func = slog_func,
             });
+
+    //load textoo
+    int tex_w, tex_h, tex_chann;
+    unsigned char *tex_data = stbi_load("assets/textures/brick.png",
+                                        &tex_w, &tex_h, &tex_chann, 4);
+    if (!tex_data) {
+        printf("ERROR: Failed to load textoo Check file path.\n");
+        printf("Looking for: assets/textures/brick.png\n");
+        exit(1);  
+    }
+
+    printf("Textoo loaded!!: %dx%d, %d channels\n", tex_w, tex_h, tex_chann);
+    
+    brick_texture = sg_make_image(&(sg_image_desc){
+            .width = tex_w,
+            .height = tex_h,
+            .pixel_format = SG_PIXELFORMAT_RGBA8,
+            .data.mip_levels[0] = {
+                .ptr = tex_data,
+                .size = (size_t)(tex_w * tex_h * 4)
+            }
+    });
+
+    stbi_image_free(tex_data);
+
+    brick_texture_view = sg_make_view(&(sg_view_desc){
+            .texture.image = brick_texture
+            });
+    brick_sampler = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = SG_FILTER_NEAREST,
+            .mag_filter = SG_FILTER_NEAREST,
+            .wrap_u = SG_WRAP_REPEAT,
+            .wrap_v = SG_WRAP_REPEAT
+            });
+
 
      offscreen_img = sg_make_image(&(sg_image_desc){
             .usage.color_attachment = true,
@@ -296,7 +365,7 @@ void init(void) {
                 .dynamic_update = true,
             },
             .size = sizeof(float) * 2 * 18 * 480,
-            });
+    });
 
     col_buf = sg_make_buffer(&(sg_buffer_desc){
             .usage = {
@@ -304,12 +373,37 @@ void init(void) {
                 .dynamic_update = true,
             },
             .size = sizeof(float) * 3 * 18 * 480,
-            });
+    });
+
+    uv_buf = sg_make_buffer(&(sg_buffer_desc){
+            .usage = {
+            .vertex_buffer = true,
+            .dynamic_update = true,
+            },
+            .size = sizeof(float) * 2 * 18 * 480,  // 2 floats per UV
+    });
 
     sg_shader shad = sg_make_shader(&(sg_shader_desc){
             .vertex_func = { .source = vs_source},
-            .fragment_func = {.source = fs_source}
-            });
+            .fragment_func = {.source = fs_source},
+            .views[0] = {
+                .texture = {
+                    .stage = SG_SHADERSTAGE_FRAGMENT,
+                    .image_type = SG_IMAGETYPE_2D,
+                    .sample_type = SG_IMAGESAMPLETYPE_FLOAT,
+                }
+            },
+            .samplers[0] = {
+                .stage = SG_SHADERSTAGE_FRAGMENT,
+                .sampler_type = SG_SAMPLERTYPE_FILTERING,
+            },
+            .texture_sampler_pairs[0] = {
+                .stage = SG_SHADERSTAGE_FRAGMENT,
+                .view_slot = 0,
+                .sampler_slot = 0,
+                .glsl_name = "tex",
+            }
+    });
 
     pip = sg_make_pipeline(&(sg_pipeline_desc){
             .shader = shad,
@@ -319,8 +413,12 @@ void init(void) {
                 .buffer_index = 0
             },
             .attrs[1] = {
-                .format = SG_VERTEXFORMAT_FLOAT3,
+                .format = SG_VERTEXFORMAT_FLOAT2,
                 .buffer_index = 1
+            },
+            .attrs[2] = {
+                .format = SG_VERTEXFORMAT_FLOAT3,
+                .buffer_index = 2
             }
         },
         .depth = {
@@ -330,7 +428,10 @@ void init(void) {
         },
     });
     r_bind.vertex_buffers[0] = pos_buf;
-    r_bind.vertex_buffers[1] = col_buf;
+    r_bind.vertex_buffers[1] = uv_buf;
+    r_bind.vertex_buffers[2] = col_buf;
+    r_bind.views[0] = brick_texture_view;
+    r_bind.samplers[0] = brick_sampler;
 
 }
 
@@ -391,20 +492,39 @@ void frame(void) {
     sg_apply_pipeline(pip);
     sg_apply_bindings(&r_bind);
 
+    float plane_x = 0.0f;
+    float plane_y = 0.66f; //fov
     float positions[480*18*2];
     float colors[480*18*3];
+    float uvs[480*18*2];
     int pos_idx = 0;
     int col_idx = 0;
+    int uv_idx = 0;
 
     for (int i = 0; i < 480; i++) {
-        float screen_x = (2.0f * i/ 480.0f) - 1.0f;
-        float ray_angle = p_angle + screen_x * (FOV/2.0f);
+
+        float camera_x = 2.0f * i / 480.0f - 1.0f;
+
+        float dir_x = cosf(p_angle);
+        float dir_y = sinf(p_angle);
+
+        float plane_x = -sinf(p_angle) * 0.66f;  // 0.66 ≈ 66° FOV
+        float plane_y = cosf(p_angle) * 0.66f;
+
+        float ray_dir_x = dir_x + plane_x * camera_x;
+        float ray_dir_y = dir_y + plane_y * camera_x;
+
+        // Convert to angle for cast_ray
+        float ray_angle = atan2f(ray_dir_y, ray_dir_x);
 
         RayHit hit = cast_ray(ray_angle);
-        float distance  = hit.distance;
-        float p_distance = distance * cosf(ray_angle - p_angle);
+        float ray_length = sqrtf(ray_dir_x * ray_dir_x + ray_dir_y * ray_dir_y);
+        float p_distance = hit.distance / ray_length;
+
+        float wall_x = hit.wall_hit_x; 
 
         float wall_h = 1.0f / p_distance;
+
         if (wall_h > 1.0f) wall_h = 1.0f; //clamparooo
 
         float x_l = (2.0f * i /480.0f) - 1.0f;
@@ -423,6 +543,12 @@ void frame(void) {
         positions[pos_idx++] = x_l; positions[pos_idx++] = -wall_h;
         positions[pos_idx++] = x_r; positions[pos_idx++] = -1.0f;
         positions[pos_idx++] = x_r; positions[pos_idx++] = -wall_h;
+
+        // Ceiling UVs
+        for (int v = 0; v < 6; v++) {
+            uvs[uv_idx++] = 0.75f;
+            uvs[uv_idx++] = 0.75f;
+        }
 
         // Calculate projection distance and shades
         float pr_dist = (RENDER_HEIGHT / 2.0f) / tanf(FOV / 2.0f); 
@@ -472,6 +598,12 @@ void frame(void) {
         positions[pos_idx++] = x_r; positions[pos_idx++] = wall_h;
         positions[pos_idx++] = x_r; positions[pos_idx++] = 1.0f;
 
+        //floor UV
+        for (int v = 0; v < 6; v++) {
+            uvs[uv_idx++] = 0.75f;
+            uvs[uv_idx++] = 0.75f;
+        }
+
         // Floor colors (match vertex order: close, far, far, close, far, close)
         // Vertex 1: y=1.0 (close)
         colors[col_idx++] = 0.2f * floor_top_shade;
@@ -497,6 +629,9 @@ void frame(void) {
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
+
+
+
         //walls
         positions[pos_idx++] = x_l; positions[pos_idx++] = wall_h;
         positions[pos_idx++] = x_l; positions[pos_idx++] = -wall_h;
@@ -505,14 +640,21 @@ void frame(void) {
         positions[pos_idx++] = x_r; positions[pos_idx++] = -wall_h;
         positions[pos_idx++] = x_r; positions[pos_idx++] = wall_h;
 
+        uvs[uv_idx++] = wall_x; uvs[uv_idx++] = 1.0f;
+        uvs[uv_idx++] = wall_x; uvs[uv_idx++] = 0.0f;
+        uvs[uv_idx++] = wall_x; uvs[uv_idx++] = 0.0f;
+        uvs[uv_idx++] = wall_x; uvs[uv_idx++] = 1.0f;
+        uvs[uv_idx++] = wall_x; uvs[uv_idx++] = 0.0f;
+        uvs[uv_idx++] = wall_x; uvs[uv_idx++] = 1.0f;
+
         //test colors different walls and some side shades
         float r,g,b;
         if (hit.wall_t == 1) {
-            r = 0.3f; g = 0.2f; b = 0.1f;
+            r = 1.0f; g = 1.0f; b = 1.0f;
         } else if (hit.wall_t == 2) {
-            r = 0.31f; g = 0.2f; b = 0.1f;
+            r = 1.21f; g = 0.2f; b = 0.32f;
         } else {
-            r = 0.32f; g = 0.1f; b = 0.2f;
+            r = 1.0; g = 0.2f; b = 0.33f;
         }
         if (hit.side == 0) {
             r *= 1.0f;
@@ -549,6 +691,10 @@ void frame(void) {
             .size = pos_idx * sizeof(float)
             });
 
+    sg_update_buffer(uv_buf, &(sg_range){
+            .ptr = uvs,
+            .size = uv_idx * sizeof(float)
+            });
     sg_update_buffer(col_buf, &(sg_range){
             .ptr = colors,
             .size = col_idx * sizeof(float)
@@ -561,7 +707,7 @@ void frame(void) {
             .action = {
             .colors[0] = {
             .load_action = SG_LOADACTION_CLEAR,
-            .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}
+            .clear_value = {1.0f, 0.0f, 0.0f, 1.0f}
             }
             },
             .swapchain = sglue_swapchain()
