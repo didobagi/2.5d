@@ -6,24 +6,34 @@
 #include "sokol/sokol_glue.h"
 #include "sokol/sokol_log.h"
 
-#define MAP_W 8
-#define MAP_H 8
+#define MAP_W 16
+#define MAP_H 16
 
 #define FOV 1.047f //60degrees in rad
 
+#define RENDER_HEIGHT 300
+
 int map[MAP_H][MAP_W] = {
-    {1,2,1,2,1,2,1,2},
-    {2,0,0,0,0,0,0,1},
-    {2,0,0,0,0,3,0,2},
-    {2,0,0,0,0,0,0,1},
-    {2,0,0,0,0,0,0,2},
-    {2,0,3,0,0,0,0,1},
-    {2,0,0,0,3,0,0,2},
-    {2,1,2,1,2,1,2,1},
+    {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2},
+    {2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2},
+    {2,0,1,1,1,1,1,1,0,1,1,1,1,1,0,2},
+    {2,0,0,0,0,0,0,0,0,0,0,0,0,1,0,2},
+    {2,0,1,1,1,1,0,1,1,1,1,1,0,1,0,2},
+    {2,0,1,0,0,0,0,0,0,0,0,1,0,0,0,2},
+    {2,0,1,0,1,1,1,1,1,1,0,1,1,1,0,2},
+    {2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,2},
+    {2,0,1,1,1,1,0,1,1,1,1,1,0,1,0,2},
+    {2,0,0,0,0,1,0,0,0,0,0,1,0,1,0,2},
+    {2,0,1,1,0,1,1,1,1,1,0,1,0,1,0,2},
+    {2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,2},
+    {2,0,1,0,1,1,1,1,1,1,1,1,1,1,0,2},
+    {2,0,0,0,0,0,0,3,0,0,0,0,0,3,0,2},
+    {2,0,1,1,1,1,1,1,1,1,1,1,1,1,0,2},
+    {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2}
 };
 
-float p_x = 4.5f;
-float p_y = 4.5f;
+float p_x = 1.5f;
+float p_y = 1.5f;
 float p_angle = 1.57f; //in rad
 
 static sg_buffer pos_buf;
@@ -167,7 +177,7 @@ RayHit cast_ray(float ray_angle) {
     float ray_dir_y = sin(ray_angle);
     float step_size = 0.05f;
     int side = 0;
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i < 500; i++) {
         ray_x += ray_dir_x * step_size;
         ray_y += ray_dir_y * step_size;
         int map_x = (int)ray_x;
@@ -203,7 +213,7 @@ void init(void) {
 
      offscreen_img = sg_make_image(&(sg_image_desc){
             .usage.color_attachment = true,
-            .width = 400,
+            .width = 480,
             .height = 300,
             .pixel_format = SG_PIXELFORMAT_RGBA8,
             });
@@ -285,7 +295,7 @@ void init(void) {
                 .vertex_buffer = true,
                 .dynamic_update = true,
             },
-            .size = sizeof(float) * 2 * 6 * 400,
+            .size = sizeof(float) * 2 * 18 * 480,
             });
 
     col_buf = sg_make_buffer(&(sg_buffer_desc){
@@ -293,7 +303,7 @@ void init(void) {
                 .vertex_buffer = true,
                 .dynamic_update = true,
             },
-            .size = sizeof(float) * 3 * 6 * 400,
+            .size = sizeof(float) * 3 * 18 * 480,
             });
 
     sg_shader shad = sg_make_shader(&(sg_shader_desc){
@@ -327,8 +337,8 @@ void init(void) {
 void frame(void) {
 
     if (key_w) {
-        float new_x = p_x + cosf(p_angle) * 0.05f;
-        float new_y = p_y + sinf(p_angle) * 0.05f;
+        float new_x = p_x + cosf(p_angle) * 0.03f;
+        float new_y = p_y + sinf(p_angle) * 0.03f;
         if (map[(int)new_y][(int)new_x] == 0) {
             p_x = new_x;
             p_y = new_y;
@@ -336,18 +346,18 @@ void frame(void) {
     }
 
     if (key_s) {
-        float new_x = p_x - cosf(p_angle) * 0.05f;
-        float new_y = p_y - sinf(p_angle) * 0.05f;
+        float new_x = p_x - cosf(p_angle) * 0.03f;
+        float new_y = p_y - sinf(p_angle) * 0.03f;
         if (map[(int)new_y][(int)new_x] == 0) {
             p_x = new_x;
             p_y = new_y;
         }
     }
-    
+
 
     if (key_a) {
-        float new_x = p_x + cosf(p_angle - 1.57f) * 0.04f;
-        float new_y = p_y + sinf(p_angle - 1.57f) * 0.05f;
+        float new_x = p_x + cosf(p_angle - 1.57f) * 0.02f;
+        float new_y = p_y + sinf(p_angle - 1.57f) * 0.03f;
         if (map[(int)new_y][(int)new_x] == 0) {
             p_x = new_x;
             p_y = new_y;
@@ -355,8 +365,8 @@ void frame(void) {
     }
 
     if (key_d) {
-        float new_x = p_x + cosf(p_angle + 1.57f) * 0.04f;
-        float new_y = p_y + sinf(p_angle + 1.57f) * 0.04f;
+        float new_x = p_x + cosf(p_angle + 1.57f) * 0.02f;
+        float new_y = p_y + sinf(p_angle + 1.57f) * 0.02f;
         if (map[(int)new_y][(int)new_x] == 0) {
             p_x = new_x;
             p_y = new_y;
@@ -369,25 +379,25 @@ void frame(void) {
     //first pass (offscren)
     sg_begin_pass(&(sg_pass){
             .action = {
-                .colors[0] = {
-                    .load_action = SG_LOADACTION_CLEAR,
-                    .clear_value = {0.05f, 0.1f, 0.65f, 1.0f}
-                }
+            .colors[0] = {
+            .load_action = SG_LOADACTION_CLEAR,
+            .clear_value = {0.05f, 0.1f, 0.65f, 1.0f}
+            }
             },
             .attachments = {
             .colors[0] = offscreen_view,
             }
-    });
+            });
     sg_apply_pipeline(pip);
     sg_apply_bindings(&r_bind);
 
-    float positions[400*6*2];
-    float colors[400*6*3];
+    float positions[480*18*2];
+    float colors[480*18*3];
     int pos_idx = 0;
     int col_idx = 0;
 
-    for (int i = 0; i < 400; i++) {
-        float screen_x = (2.0f * i/ 400.0f) - 1.0f;
+    for (int i = 0; i < 480; i++) {
+        float screen_x = (2.0f * i/ 480.0f) - 1.0f;
         float ray_angle = p_angle + screen_x * (FOV/2.0f);
 
         RayHit hit = cast_ray(ray_angle);
@@ -397,13 +407,100 @@ void frame(void) {
         float wall_h = 1.0f / p_distance;
         if (wall_h > 1.0f) wall_h = 1.0f; //clamparooo
 
-        float x_l = (2.0f * i /400.0f) - 1.0f;
-        float x_r = (2.0f * (i + 1)/ 400.0f) - 1.0f;
-        
+        float x_l = (2.0f * i /480.0f) - 1.0f;
+        float x_r = (2.0f * (i + 1)/ 480.0f) - 1.0f;
+
+        float test_fog_r = 0.3f;
+        float test_fog_g = 0.3f;
+        float test_fog_b = 0.3f;
+        float fog_max_dist = 8.0f;
+
+
+        //ceiling 
+        positions[pos_idx++] = x_l; positions[pos_idx++] = -wall_h;
+        positions[pos_idx++] = x_l; positions[pos_idx++] = -1.0f;
+        positions[pos_idx++] = x_r; positions[pos_idx++] = -1.0f;
+        positions[pos_idx++] = x_l; positions[pos_idx++] = -wall_h;
+        positions[pos_idx++] = x_r; positions[pos_idx++] = -1.0f;
+        positions[pos_idx++] = x_r; positions[pos_idx++] = -wall_h;
+
+        // Calculate projection distance and shades
+        float pr_dist = (RENDER_HEIGHT / 2.0f) / tanf(FOV / 2.0f); 
+
+        // Ceiling shading
+        float y_t = -wall_h;
+        float y_t_pix = y_t * (RENDER_HEIGHT / 2.0f);
+        float dist_from_h_tp = fabs(y_t_pix);
+        float ceil_t_d = (0.5f * pr_dist) / dist_from_h_tp;
+        float tp_shade = 1.0f - (ceil_t_d / 3.0f);
+        if (tp_shade < 0.1f) tp_shade = 0.1f;
+
+        float y_b = -1.0f;
+        float y_b_pix = y_b * (RENDER_HEIGHT / 2.0f);
+        float dist_from_h_btm = fabs(y_b_pix);
+        float ceil_b_d = (0.5f * pr_dist) / dist_from_h_btm;
+        float btm_shade = 1.0f - (ceil_b_d / 3.0f);
+        if (btm_shade < 0.1f) btm_shade = 0.1f;
+
+        // Floor shading
+        float y_floor_top = 1.0f;
+        float y_floor_top_pix = y_floor_top * (RENDER_HEIGHT / 2.0f);
+        float dist_from_h_floor_top = fabsf(y_floor_top_pix);
+        float floor_top_d = (0.5f * pr_dist) / dist_from_h_floor_top;
+        float floor_top_shade = 1.0f - (floor_top_d / 3.0f);
+        if (floor_top_shade < 0.1f) floor_top_shade = 0.1f;
+
+        float y_floor_btm = wall_h;
+        float y_floor_btm_pix = y_floor_btm * (RENDER_HEIGHT / 2.0f);
+        float dist_from_h_floor_btm = fabsf(y_floor_btm_pix);
+        float floor_btm_d = (0.5f * pr_dist) / dist_from_h_floor_btm;
+        float floor_btm_shade = 1.0f - (floor_btm_d / 3.0f);
+        if (floor_btm_shade < 0.1f) floor_btm_shade = 0.1f;
+
+        // Ceiling colors (deliberate: using tp_shade for "reflection" effect)
+        for (int v = 0; v < 6; v++) {
+            colors[col_idx++] = 0.2f * tp_shade;
+            colors[col_idx++] = 0.2f * tp_shade;
+            colors[col_idx++] = 0.2f * tp_shade;
+        }
+
+        //floor (renders at bottom of screen)
+        positions[pos_idx++] = x_l; positions[pos_idx++] = 1.0f;
+        positions[pos_idx++] = x_l; positions[pos_idx++] = wall_h;
+        positions[pos_idx++] = x_r; positions[pos_idx++] = wall_h;
+        positions[pos_idx++] = x_l; positions[pos_idx++] = 1.0f;
+        positions[pos_idx++] = x_r; positions[pos_idx++] = wall_h;
+        positions[pos_idx++] = x_r; positions[pos_idx++] = 1.0f;
+
+        // Floor colors (match vertex order: close, far, far, close, far, close)
+        // Vertex 1: y=1.0 (close)
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        // Vertex 2: y=wall_h (far)
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        // Vertex 3: y=wall_h (far)
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        // Vertex 4: y=1.0 (close)
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        // Vertex 5: y=wall_h (far)
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        colors[col_idx++] = 0.2f * floor_btm_shade;
+        // Vertex 6: y=1.0 (close)
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        colors[col_idx++] = 0.2f * floor_top_shade;
+        //walls
         positions[pos_idx++] = x_l; positions[pos_idx++] = wall_h;
         positions[pos_idx++] = x_l; positions[pos_idx++] = -wall_h;
         positions[pos_idx++] = x_r; positions[pos_idx++] = -wall_h;
-
         positions[pos_idx++] = x_l; positions[pos_idx++] = wall_h;
         positions[pos_idx++] = x_r; positions[pos_idx++] = -wall_h;
         positions[pos_idx++] = x_r; positions[pos_idx++] = wall_h;
@@ -411,11 +508,11 @@ void frame(void) {
         //test colors different walls and some side shades
         float r,g,b;
         if (hit.wall_t == 1) {
-            r = 0.1f; g = 0.4f; b = 0.1f;
-        } else if (hit.wall_t == 2) {
             r = 0.3f; g = 0.2f; b = 0.1f;
+        } else if (hit.wall_t == 2) {
+            r = 0.31f; g = 0.2f; b = 0.1f;
         } else {
-            r = 0.1f; g = 0.6f; b = 0.4f;
+            r = 0.32f; g = 0.1f; b = 0.2f;
         }
         if (hit.side == 0) {
             r *= 1.0f;
@@ -426,48 +523,55 @@ void frame(void) {
             g *= 0.75f;
             b *= 0.75f;
         }
+
+        float fog_amount = hit.distance / fog_max_dist;
+        if (fog_amount > 1.0f) fog_amount = 1.0f;
+        r = r * (1.0f - fog_amount) + test_fog_r * fog_amount;
+        g = g * (1.0f - fog_amount) + test_fog_g * fog_amount;
+        b = b * (1.0f - fog_amount) + test_fog_b * fog_amount;
+
+
         float shade = 1.0f - (hit.distance / 10.0f);
         if (shade < 0.2f) shade = 0.2f;
         r *= shade;
         g *= shade;
         b *= shade;
-        
 
         for (int v = 0; v < 6; v++) {
             colors[col_idx++] = r;
             colors[col_idx++] = g;
             colors[col_idx++] = b;
         }
-
     }
+
     sg_update_buffer(pos_buf, &(sg_range){
-        .ptr = positions,
-        .size = pos_idx * sizeof(float)
-    });
-    
+            .ptr = positions,
+            .size = pos_idx * sizeof(float)
+            });
+
     sg_update_buffer(col_buf, &(sg_range){
-        .ptr = colors,
-        .size = col_idx * sizeof(float)
-    });
+            .ptr = colors,
+            .size = col_idx * sizeof(float)
+            });
     sg_draw(0, pos_idx/2, 1);
     sg_end_pass();
 
     //pass 2
     sg_begin_pass(&(sg_pass){
             .action = {
-                .colors[0] = {
-                    .load_action = SG_LOADACTION_CLEAR,
-                    .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}
-                }
+            .colors[0] = {
+            .load_action = SG_LOADACTION_CLEAR,
+            .clear_value = {0.0f, 0.0f, 0.0f, 1.0f}
+            }
             },
             .swapchain = sglue_swapchain()
-    });
+            });
 
 
     sg_apply_pipeline(display_pip);
     sg_apply_bindings(&display_bind);
     sg_draw(0, 4, 1);
-    
+
     sg_end_pass();
     sg_commit();
 }
