@@ -47,6 +47,7 @@ static sg_buffer col_buf;
 static sg_buffer uv_buf;
 
 
+
 static sg_pipeline pip;
 static sg_bindings r_bind;
 static sg_image offscreen_img;
@@ -594,10 +595,10 @@ void frame(void) {
         float x_l = (2.0f * i /480.0f) - 1.0f;
         float x_r = (2.0f * (i + 1)/ 480.0f) - 1.0f;
 
-        float test_fog_r = 0.3f;
-        float test_fog_g = 0.3f;
-        float test_fog_b = 0.3f;
-        float fog_max_dist = 8.0f;
+        float test_fog_r = 0.12f;
+        float test_fog_g = 0.12f;
+        float test_fog_b = 0.12;
+        float fog_max_dist = 4.0f;
 
 
         //ceiling 
@@ -668,28 +669,26 @@ void frame(void) {
             uvs[uv_idx++] = 0.75f;
         }
 
-        // Floor colors (match vertex order: close, far, far, close, far, close)
-        // Vertex 1: y=1.0 (close)
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
-        // Vertex 2: y=wall_h (far)
+
         colors[col_idx++] = 0.2f * floor_btm_shade;
         colors[col_idx++] = 0.2f * floor_btm_shade;
         colors[col_idx++] = 0.2f * floor_btm_shade;
-        // Vertex 3: y=wall_h (far)
+
         colors[col_idx++] = 0.2f * floor_btm_shade;
         colors[col_idx++] = 0.2f * floor_btm_shade;
         colors[col_idx++] = 0.2f * floor_btm_shade;
-        // Vertex 4: y=1.0 (close)
+
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
-        // Vertex 5: y=wall_h (far)
+
         colors[col_idx++] = 0.2f * floor_btm_shade;
         colors[col_idx++] = 0.2f * floor_btm_shade;
         colors[col_idx++] = 0.2f * floor_btm_shade;
-        // Vertex 6: y=1.0 (close)
+
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
         colors[col_idx++] = 0.2f * floor_top_shade;
